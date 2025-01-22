@@ -196,7 +196,6 @@ class Message:
         if self.jsonheader["content-type"] == "text/json": # type: ignore
             encoding = self.jsonheader["content-encoding"] # type: ignore
             self.response = self._json_decode(data, encoding)
-            print(f"Received response {self.response!r} from {self.addr}")   
             
             self.sensor_data = dict(self.response)
             self._setup_for_reply()

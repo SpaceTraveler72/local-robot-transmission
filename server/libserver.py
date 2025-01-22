@@ -175,7 +175,6 @@ class Message:
         if self.jsonheader["content-type"] == "text/json": # type: ignore
             encoding = self.jsonheader["content-encoding"] # type: ignore
             self.request = self._json_decode(data, encoding)
-            print(f"Received request {self.request!r} from {self.addr}")
             
             self.robot_state = dict(self.request)
         else:
