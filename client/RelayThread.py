@@ -7,7 +7,7 @@ import traceback
 import libclient as libclient
 
 
-class TransThread:
+class RelayThread:
     _instance = None
 
     # When a new instance is created, sets it to the same global instance
@@ -89,6 +89,6 @@ class TransThread:
         finally:
             self.sel.close()
 
-transmission = TransThread()
+transmission = RelayThread()
 transmission.begin_thread()
 transmission.set_horizontal_motors(1.0, 1.0, 1.0, 1.0)
