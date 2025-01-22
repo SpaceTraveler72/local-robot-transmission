@@ -44,30 +44,32 @@ class RelayThread:
         thread = threading.Thread(target=self._run_client_socket)
         thread.start()
 
-    def _create_request(self, horizontal_motors, vertical_motors, enabled):
+    def _create_request(self, robot_state):
         return dict(
             type="text/json",
             encoding="utf-8",
-            content=dict( horizontal_motors=horizontal_motors, 
-                            vertical_motors=vertical_motors,
-                            enabled=enabled ),
+            content=robot_state,
         )
     
-    def _start_connection(self, host, port, request):
+    def _start_connection(self, host, port):
         addr = (host, port)
         print(f"Starting connection to {addr}")
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.setblocking(False)
         sock.connect_ex(addr)
         events = selectors.EVENT_READ | selectors.EVENT_WRITE
+        
+        # Send intial message to establish connection with initial robot state
+        request = self._create_request(self.robot_state)
         message = libclient.Message(self.sel, sock, addr, request, self.robot_state, self.sensor_data)
         self.sel.register(sock, events, data=message)
 
     def _run_client_socket(self):
-        request = self._create_request(self.robot_state["horizontal_motors"], self.robot_state["vertical_motors"], self.robot_state["enabled"])
-        self._start_connection(self.host, self.port, request)
-        
         try:
+            # Start the connection
+            self._start_connection(self.host, self.port)
+
+            # Send and recieve messages
             while True:
                 events = self.sel.select(timeout=1)
                 for key, mask in events:
@@ -81,9 +83,10 @@ class RelayThread:
                             f"{traceback.format_exc()}"
                         )
                         message.close()
-                # Check for a socket being monitored to continue.
+                # reconnect if there are no active connections
                 if not self.sel.get_map():
-                    break
+                    self._start_connection(self.host, self.port)
+
         except KeyboardInterrupt:
             print("Caught keyboard interrupt, exiting")
         finally:

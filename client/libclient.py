@@ -83,15 +83,6 @@ class Message:
         message = message_hdr + jsonheader_bytes + content_bytes
         return message
 
-    def _setup_for_reply(self):
-        # Resend the response back to the server
-        self._request_queued = False
-        self._jsonheader_len = None
-        self.jsonheader = None
-        self.response = None
-        
-        self._set_selector_events_mask("w")  # Switch to write mode to send the response        
-
     def process_events(self, mask, robot_state):
         self.robot_state = robot_state
         
@@ -198,8 +189,14 @@ class Message:
             self.response = self._json_decode(data, encoding)
             
             self.sensor_data = dict(self.response)
-            self._setup_for_reply()
         else:
             raise ValueError(f"Bad content type header.")
-        # Do not close when response has been processed
-        # self.close()  # Comment out the close call
+        
+        # reset state to read the next message
+        self._request_queued = False
+        self._jsonheader_len = None
+        self.jsonheader = None
+        self.response = None
+        
+        self._set_selector_events_mask("w")  # Switch to write mode to send the response        
+

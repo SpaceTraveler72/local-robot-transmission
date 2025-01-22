@@ -15,7 +15,6 @@ class Message:
         self._jsonheader_len = None
         self.jsonheader = None
         self.request = None
-        self.response_created = False
         
         self.sensor_data = default_sensor_data
         self.robot_state = default_robot_state
@@ -84,7 +83,10 @@ class Message:
         return message
 
     def _create_response_json_content(self):
+        # sent the content of the message to be the sensor data
         content = self.sensor_data
+        
+        # magic
         content_encoding = "utf-8"
         response = {
             "content_bytes": self._json_encode(content, content_encoding),
@@ -100,7 +102,8 @@ class Message:
             self.read()
         if mask & selectors.EVENT_WRITE:
             self.write()
-            
+        
+        # returns the robot state if you want to grab it through this function
         return self.robot_state
 
     def read(self):
@@ -119,8 +122,7 @@ class Message:
 
     def write(self):
         if self.request:
-            if not self.response_created:
-                self.create_response()
+            self.create_response()
 
         self._write()
 
@@ -189,12 +191,13 @@ class Message:
             # Binary or unknown content-type
             raise ValueError(f"Unsupported content type: {self.jsonheader['content-type']!r}") # type: ignore
         message = self._create_message(**response)
-        self.response_created = True
         self._send_buffer += message
         
+        # Set selector to listen for read events, we're done writing.
         self._set_selector_events_mask("r")
+        
+        # Reset state to read the next message
         self._jsonheader_len = None
         self.jsonheader = None
         self.request = None
-        self.response_created = False
         
