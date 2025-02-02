@@ -29,7 +29,7 @@ while True:
 		
 		while(vid.isOpened()):
 			img,frame = vid.read()
-			frame = imutils.resize(frame,width=320)
+			frame = imutils.resize(frame,width=350)
 			a = pickle.dumps(frame)
 			message = struct.pack("Q",len(a))+a
 			client_socket.sendall(message)

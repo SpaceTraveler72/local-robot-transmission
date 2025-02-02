@@ -3,8 +3,25 @@ import socket, cv2, pickle, struct
 from tkinter import Tk, Label
 from PIL import Image, ImageTk
 
+
+
+class CamSocket:
+    def __init__(self, host_ip, port):
+    
+
+class CamRecv:
+    def __init__(self):
+        self.cam_sockets = []
+        self.host_ip = 'localhost'
+        self.next_port = 9999
+        
+    def create_cam_socket(self):
+        client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        client_socket.connect((self.host_ip, self.next_port))
+        self.next_port += 1
+        
+        
 # create socket
-client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 host_ip = 'localhost' # paste your server ip address here
 port = 9999
 client_socket.connect((host_ip, port)) # a tuple
