@@ -22,19 +22,19 @@ print("LISTENING AT:",socket_address)
 
 # Socket Accept
 while True:
-	client_socket,addr = server_socket.accept()
-	print('GOT CONNECTION FROM:',addr)
-	if client_socket:
-		vid = cv2.VideoCapture(0)
-		
-		while(vid.isOpened()):
-			img,frame = vid.read()
-			frame = imutils.resize(frame,width=350)
-			a = pickle.dumps(frame)
-			message = struct.pack("Q",len(a))+a
-			client_socket.sendall(message)
-			
-			cv2.imshow('TRANSMITTING VIDEO',frame)
-			key = cv2.waitKey(1) & 0xFF
-			if key ==ord('q'):
-				client_socket.close()
+    client_socket,addr = server_socket.accept()
+    print('GOT CONNECTION FROM:',addr)
+    if client_socket:
+        vid = cv2.VideoCapture(0)
+        
+        while(vid.isOpened()):
+            img,frame = vid.read()
+            frame = imutils.resize(frame,width=320)
+            a = pickle.dumps(frame)
+            message = struct.pack("Q",len(a))+a
+            client_socket.sendall(message)
+            
+            cv2.imshow('TRANSMITTING VIDEO',frame)
+            key = cv2.waitKey(1) & 0xFF
+            if key ==ord('q'):
+                client_socket.close()
