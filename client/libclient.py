@@ -9,7 +9,7 @@ import imutils
 
 
 class Message:
-    def __init__(self, selector, sock, addr, request, default_input_data, default_recieve_data):
+    def __init__(self, selector, sock, addr, request, key, default_input_data, default_recieve_data):
         self.selector = selector
         self.sock = sock
         self.addr = addr
@@ -21,6 +21,8 @@ class Message:
         self.jsonheader = None
         self.response = None
         
+        # stuff added but not in the original code
+        self.key = key
         self.recieve_data = default_recieve_data
         self.input_data = default_input_data
 
@@ -72,7 +74,7 @@ class Message:
         tiow.close()
         return obj
 
-    def _pickle_encode(self, obj, frame_width = 350):
+    def _camera_encode(self, obj, frame_width = 350):
         resized_frames = []
         # Resize the frame to the specified width (default is 350)
         for frame in obj:
@@ -81,7 +83,7 @@ class Message:
         # use pickle as the encoding method
         return pickle.dumps(resized_frames)
 
-    def _pickle_decode(self, data):
+    def _camera_decode(self, data):
         return pickle.loads(data)
 
     def _create_message(
@@ -98,9 +100,7 @@ class Message:
         message = message_hdr + jsonheader_bytes + content_bytes
         return message
 
-    def process_events(self, mask, input_data):
-        self.input_data = input_data
-        
+    def process_events(self, mask):        
         if mask & selectors.EVENT_READ:
             self.read()
         if mask & selectors.EVENT_WRITE:
@@ -164,7 +164,7 @@ class Message:
             }
         if content_type == "camera":
             req = {
-                "content_bytes": self._pickle_encode(self.input_data),
+                "content_bytes": self._camera_encode(self.input_data),
                 "content_type": content_type,
                 "content_encoding": content_encoding,
             }
@@ -210,6 +210,10 @@ class Message:
             self.response = self._json_decode(data, encoding)
             
             self.recieve_data = dict(self.response)
+        elif self.jsonheader["content-type"] == "camera": # type: ignore
+            self.response = self._camera_decode(data)
+            
+            self.recieve_data = self.response
         else:
             raise ValueError(f"Bad content type header.")
         

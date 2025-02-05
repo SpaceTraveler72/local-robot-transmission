@@ -1,12 +1,15 @@
 import io
 import json
+import pickle
 import selectors
 import struct
 import sys
 
+import imutils
+
 
 class Message:
-    def __init__(self, selector, sock, addr, default_robot_state, default_sensor_data):
+    def __init__(self, selector, sock, addr, key, default_input_data, default_recieve_data):
         self.selector = selector
         self.sock = sock
         self.addr = addr
@@ -16,8 +19,10 @@ class Message:
         self.jsonheader = None
         self.request = None
         
-        self.sensor_data = default_sensor_data
-        self.robot_state = default_robot_state
+        # stuff added but not in the original code
+        self.key = key
+        self.input_data = default_input_data
+        self.recieve_data = default_recieve_data
 
     def _set_selector_events_mask(self, mode):
         """Set selector to listen for events: mode is 'r', 'w', or 'rw'."""
@@ -68,6 +73,18 @@ class Message:
         tiow.close()
         return obj
 
+    def _camera_encode(self, obj, frame_width = 350):
+        resized_frames = []
+        # Resize the frame to the specified width (default is 350)
+        for frame in obj:
+            frame = imutils.resize(self.input_data, width=frame_width)
+            resized_frames.append(frame)
+        # use pickle as the encoding method
+        return pickle.dumps(resized_frames)
+
+    def _camera_decode(self, data):
+        return pickle.loads(data)
+
     def _create_message(
         self, *, content_bytes, content_type, content_encoding
     ):
@@ -84,7 +101,7 @@ class Message:
 
     def _create_response_json_content(self):
         # sent the content of the message to be the sensor data
-        content = self.sensor_data
+        content = self.input_data
         
         # magic
         content_encoding = "utf-8"
@@ -95,16 +112,27 @@ class Message:
         }
         return response
 
-    def process_events(self, mask, sensor_data):
-        self.sensor_data = sensor_data
+    def _create_response_camera_content(self):
+        # sent the content of the message to be the camera data
+        content = self.input_data
         
+        # magic
+        content_encoding = "pickle"
+        response = {
+            "content_bytes": self._camera_encode(content),
+            "content_type": "camera",
+            "content_encoding": content_encoding,
+        }
+        return response
+
+    def process_events(self, mask,):
         if mask & selectors.EVENT_READ:
             self.read()
         if mask & selectors.EVENT_WRITE:
             self.write()
         
-        # returns the robot state if you want to grab it through this function
-        return self.robot_state
+        # returns the recieved_data if you want to grab it through this function
+        return self.recieve_data
 
     def read(self):
         self._read()
@@ -178,7 +206,10 @@ class Message:
             encoding = self.jsonheader["content-encoding"] # type: ignore
             self.request = self._json_decode(data, encoding)
             
-            self.robot_state = dict(self.request)
+            self.recieve_data = dict(self.request)
+        elif self.jsonheader["content-type"] == "camera": # type: ignore
+            self.request = self._camera_decode(data)
+            self.recieve_data = self.request
         else:
             raise ValueError(f"Unsupported content type: {self.jsonheader['content-type']!r}") # type: ignore
         # Set selector to listen for write events, we're done reading.
@@ -187,6 +218,8 @@ class Message:
     def create_response(self):
         if self.jsonheader["content-type"] == "text/json": # type: ignore
             response = self._create_response_json_content()
+        elif self.jsonheader["content-type"] == "camera": # type: ignore
+            response = self._create_response_camera_content()
         else:
             # Binary or unknown content-type
             raise ValueError(f"Unsupported content type: {self.jsonheader['content-type']!r}") # type: ignore

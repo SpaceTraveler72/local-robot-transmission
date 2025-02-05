@@ -25,7 +25,6 @@ class RelayThread:
         self.sel = selectors.DefaultSelector()
         self.sensor_data = {"IMU": (0.0, 0.0, 0.0)}
         self.robot_state = {"horizontal_motors": (0, 0, 0, 0), "vertical_motors": (0, 0), "enabled": False}
-        self.num_cameras = 0
         self.camera_connections = []
         
         self.host = 'localhost'
@@ -51,18 +50,42 @@ class RelayThread:
         conn, addr = sock.accept()  # Should be ready to read
         print(f"Accepted connection from {addr}")
         conn.setblocking(False)
-        message = libserver.Message(self.sel, conn, addr, self.robot_state, self.sensor_data)
+        message = libserver.Message(self.sel, conn, addr,
+                                    key="robot-data", 
+                                    default_input_data=self.sensor_data, 
+                                    default_recieve_data=self.robot_state)
         self.sel.register(conn, selectors.EVENT_READ, data=message)
     
     def _connect_all_cameras(self):
-        self.num_cameras = 0
-        for i in range(10):
+        i = 0
+        while True:
             cap = cv2.VideoCapture(i)
             if cap.isOpened():
-                self.num_cameras += 1
                 self.camera_connections.append(cap)
             else:
                 break
+            i += 1
+    
+    def process_message(self, message, mask):
+        message_type = message.key
+                        
+        if message_type == "robot_data":
+            message.input_data = self.sensor_data
+        elif message_type == "camera_stream":
+            frames = []
+            for camera in self.camera_connections:
+                ret, frame = camera.read()
+                if ret:
+                    frames.append(frame)
+            message.input_data = frames
+            
+        data = message.process_events(mask)
+        
+        if message_type == "robot_data":
+            self.robot_state = data
+            print(f"Received: {data}")
+        elif message_type == "camera_stream":
+            pass
     
     def run_server_socket(self):
         lsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -82,8 +105,7 @@ class RelayThread:
                     else:
                         message = key.data
                         try:
-                            message.process_events(mask, self.sensor_data)
-                            print(f"Received: {message.robot_state}")
+                            self.process_message(message, mask)
                         except Exception:
                             print(
                                 f"Main: Error: Exception for {message.addr}:\n"

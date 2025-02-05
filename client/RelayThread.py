@@ -4,6 +4,8 @@ import socket
 import threading
 import traceback
 
+import cv2
+
 import libclient as libclient
 
 
@@ -70,13 +72,30 @@ class RelayThread:
         
         # Send intial message to establish connection with initial robot state
         request = self._create_request("text/json")
-        message = libclient.Message(self.sel, sock, addr, request, self.robot_state, self.sensor_data)
+        message = libclient.Message(self.sel, sock, addr, request, "robot_data",  self.robot_state, self.sensor_data)
         self.sel.register(sock, events, message)
         
         request = self._create_request("camera")
-        message = libclient.Message(self.sel, sock, addr, request, "", None)
+        message = libclient.Message(self.sel, sock, addr, request, "camera_stream","", None)
         self.sel.register(sock, events, message)
+    
+    def process_message(self, message, mask):
+        message_type = message.key
+                        
+        if message_type == "robot_data":
+            message.input_data = self.robot_state
+        elif message_type == "camera_stream":
+            message.input_data = ""
+            
+        data = message.process_events(mask)
         
+        if message_type == "robot_data":
+            self.sensor_data = data
+            print(f"Received: {data}")
+        elif message_type == "camera_stream":
+            self.camera_data = data
+            for frame in self.camera_data:
+                cv2.imshow('Receving Video', frame)
 
     def _run_client_socket(self):
         try:
@@ -89,8 +108,8 @@ class RelayThread:
                 for key, mask in events:
                     message = key.data
                     try:
-                        message.process_events(mask, self.robot_state)
-                        print(f"Received: {message.sensor_data}")
+                        self.process_message(message, mask)
+
                     except Exception:
                         print(
                             f"Main: Error: Exception for {message.addr}:\n"
