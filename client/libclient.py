@@ -1,12 +1,15 @@
 import io
 import json
+import pickle
 import selectors
 import struct
 import sys
 
+import imutils
+
 
 class Message:
-    def __init__(self, selector, sock, addr, request, default_robot_state, default_sensor_data):
+    def __init__(self, selector, sock, addr, request, default_input_data, default_recieve_data):
         self.selector = selector
         self.sock = sock
         self.addr = addr
@@ -18,8 +21,8 @@ class Message:
         self.jsonheader = None
         self.response = None
         
-        self.sensor_data = default_sensor_data
-        self.robot_state = default_robot_state
+        self.recieve_data = default_recieve_data
+        self.input_data = default_input_data
 
     def _set_selector_events_mask(self, mode):
         """Set selector to listen for events: mode is 'r', 'w', or 'rw'."""
@@ -69,6 +72,18 @@ class Message:
         tiow.close()
         return obj
 
+    def _pickle_encode(self, obj, frame_width = 350):
+        resized_frames = []
+        # Resize the frame to the specified width (default is 350)
+        for frame in obj:
+            frame = imutils.resize(self.input_data, width=frame_width)
+            resized_frames.append(frame)
+        # use pickle as the encoding method
+        return pickle.dumps(resized_frames)
+
+    def _pickle_decode(self, data):
+        return pickle.loads(data)
+
     def _create_message(
         self, *, content_bytes, content_type, content_encoding
     ):
@@ -83,15 +98,15 @@ class Message:
         message = message_hdr + jsonheader_bytes + content_bytes
         return message
 
-    def process_events(self, mask, robot_state):
-        self.robot_state = robot_state
+    def process_events(self, mask, input_data):
+        self.input_data = input_data
         
         if mask & selectors.EVENT_READ:
             self.read()
         if mask & selectors.EVENT_WRITE:
             self.write()
         
-        return self.sensor_data
+        return self.recieve_data
 
     def read(self):
         self._read()
@@ -111,7 +126,6 @@ class Message:
         if not self._request_queued:
             self.queue_request()
 
-        self.request["content"] = self.robot_state
         self._write()
 
         if self._request_queued:
@@ -138,12 +152,19 @@ class Message:
             self.sock = None
 
     def queue_request(self):
-        content = self.request["content"]
         content_type = self.request["type"]
         content_encoding = self.request["encoding"]
+        
+        # Encode the current input data based on the content type
         if content_type == "text/json":
             req = {
-                "content_bytes": self._json_encode(content, content_encoding),
+                "content_bytes": self._json_encode(self.input_data, content_encoding),
+                "content_type": content_type,
+                "content_encoding": content_encoding,
+            }
+        if content_type == "camera":
+            req = {
+                "content_bytes": self._pickle_encode(self.input_data),
                 "content_type": content_type,
                 "content_encoding": content_encoding,
             }
@@ -188,7 +209,7 @@ class Message:
             encoding = self.jsonheader["content-encoding"] # type: ignore
             self.response = self._json_decode(data, encoding)
             
-            self.sensor_data = dict(self.response)
+            self.recieve_data = dict(self.response)
         else:
             raise ValueError(f"Bad content type header.")
         

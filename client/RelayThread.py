@@ -44,12 +44,21 @@ class RelayThread:
         thread = threading.Thread(target=self._run_client_socket)
         thread.start()
 
-    def _create_request(self, robot_state):
-        return dict(
-            type="text/json",
-            encoding="utf-8",
-            content=robot_state,
-        )
+    def _create_request(self, message_type):
+        if message_type == "text/json":
+            return dict(
+                type="text/json",
+                encoding="utf-8",
+                content=self.robot_state,
+            )
+        if message_type == "camera":
+            return dict(
+                type="camera",
+                encoding="pickle",
+                content=self.sensor_data,
+            )
+        
+        raise ValueError(f"Unsupported message type: {message_type!r}")
     
     def _start_connection(self, host, port):
         addr = (host, port)
@@ -60,9 +69,14 @@ class RelayThread:
         events = selectors.EVENT_READ | selectors.EVENT_WRITE
         
         # Send intial message to establish connection with initial robot state
-        request = self._create_request(self.robot_state)
+        request = self._create_request("text/json")
         message = libclient.Message(self.sel, sock, addr, request, self.robot_state, self.sensor_data)
-        self.sel.register(sock, events, data=message)
+        self.sel.register(sock, events, message)
+        
+        request = self._create_request("camera")
+        message = libclient.Message(self.sel, sock, addr, request, "", None)
+        self.sel.register(sock, events, message)
+        
 
     def _run_client_socket(self):
         try:

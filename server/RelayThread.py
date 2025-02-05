@@ -4,6 +4,7 @@ import selectors
 import socket
 import threading
 import traceback
+import cv2
 
 import libserver as libserver
 
@@ -24,6 +25,8 @@ class RelayThread:
         self.sel = selectors.DefaultSelector()
         self.sensor_data = {"IMU": (0.0, 0.0, 0.0)}
         self.robot_state = {"horizontal_motors": (0, 0, 0, 0), "vertical_motors": (0, 0), "enabled": False}
+        self.num_cameras = 0
+        self.camera_connections = []
         
         self.host = 'localhost'
         self.port = 65432
@@ -50,6 +53,16 @@ class RelayThread:
         conn.setblocking(False)
         message = libserver.Message(self.sel, conn, addr, self.robot_state, self.sensor_data)
         self.sel.register(conn, selectors.EVENT_READ, data=message)
+    
+    def _connect_all_cameras(self):
+        self.num_cameras = 0
+        for i in range(10):
+            cap = cv2.VideoCapture(i)
+            if cap.isOpened():
+                self.num_cameras += 1
+                self.camera_connections.append(cap)
+            else:
+                break
     
     def run_server_socket(self):
         lsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
