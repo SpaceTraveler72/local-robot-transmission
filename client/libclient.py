@@ -53,7 +53,7 @@ class Message:
 
     def _write(self):
         if self._send_buffer:
-            print(f"Sending {self._send_buffer!r} to {self.addr}")
+            #print(f"Sending {self._send_buffer!r} to {self.addr}")
             try:
                 # Should be ready to write
                 sent = self.sock.send(self._send_buffer) # type: ignore
@@ -162,7 +162,7 @@ class Message:
                 "content_type": content_type,
                 "content_encoding": content_encoding,
             }
-        if content_type == "camera":
+        elif content_type == "camera":
             req = {
                 "content_bytes": self._camera_encode(self.input_data),
                 "content_type": content_type,

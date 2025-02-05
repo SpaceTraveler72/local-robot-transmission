@@ -50,8 +50,7 @@ class RelayThread:
         conn, addr = sock.accept()  # Should be ready to read
         print(f"Accepted connection from {addr}")
         conn.setblocking(False)
-        message = libserver.Message(self.sel, conn, addr,
-                                    key="robot-data", 
+        message = libserver.Message(self.sel, conn, addr, "robot-data", 
                                     default_input_data=self.sensor_data, 
                                     default_recieve_data=self.robot_state)
         self.sel.register(conn, selectors.EVENT_READ, data=message)
@@ -77,13 +76,15 @@ class RelayThread:
                 ret, frame = camera.read()
                 if ret:
                     frames.append(frame)
+                    
+            print(f"Sending {len(frames)} frames")
             message.input_data = frames
             
         data = message.process_events(mask)
         
         if message_type == "robot_data":
             self.robot_state = data
-            print(f"Received: {data}")
+            #print(f"Received: {data}")
         elif message_type == "camera_stream":
             pass
     

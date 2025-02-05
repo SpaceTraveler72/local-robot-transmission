@@ -1,4 +1,3 @@
-
 import selectors
 import socket
 import threading
@@ -65,19 +64,33 @@ class RelayThread:
     def _start_connection(self, host, port):
         addr = (host, port)
         print(f"Starting connection to {addr}")
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.setblocking(False)
-        sock.connect_ex(addr)
-        events = selectors.EVENT_READ | selectors.EVENT_WRITE
         
-        # Send intial message to establish connection with initial robot state
-        request = self._create_request("text/json")
-        message = libclient.Message(self.sel, sock, addr, request, "robot_data",  self.robot_state, self.sensor_data)
-        self.sel.register(sock, events, message)
+        # Create socket for robot data
+        robot_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        robot_sock.setblocking(False)
+        robot_sock.connect_ex(addr)
+        robot_events = selectors.EVENT_READ | selectors.EVENT_WRITE
         
-        request = self._create_request("camera")
-        message = libclient.Message(self.sel, sock, addr, request, "camera_stream","", None)
-        self.sel.register(sock, events, message)
+        # Send initial message to establish connection with initial robot state
+        robot_request = self._create_request("text/json")
+        robot_addr = (host, port)
+        robot_message = libclient.Message(self.sel, robot_sock, robot_addr, robot_request, "robot_data",  
+                                          default_input_data=self.robot_state, 
+                                          default_recieve_data=self.sensor_data)
+        self.sel.register(robot_sock, robot_events, robot_message)
+        
+        # # Create socket for camera stream
+        # camera_addr = (host, port + 1)
+        # camera_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        # camera_sock.setblocking(False)
+        # camera_sock.connect_ex(camera_addr)
+        # camera_events = selectors.EVENT_READ | selectors.EVENT_WRITE
+        
+        # camera_request = self._create_request("camera")
+        # camera_message = libclient.Message(self.sel, camera_sock, camera_addr, camera_request, "camera_stream",
+        #                                    default_input_data="", 
+        #                                    default_recieve_data=[])
+        # self.sel.register(camera_sock, camera_events, camera_message)
     
     def process_message(self, message, mask):
         message_type = message.key
