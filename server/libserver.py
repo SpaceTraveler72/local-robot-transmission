@@ -9,7 +9,7 @@ import imutils
 
 
 class Message:
-    def __init__(self, selector, sock, addr, key, default_input_data, default_recieve_data):
+    def __init__(self, selector, sock, addr, default_input_data, default_recieve_data):
         self.selector = selector
         self.sock = sock
         self.addr = addr
@@ -20,7 +20,6 @@ class Message:
         self.request = None
         
         # stuff added but not in the original code
-        self.key = key
         self.input_data = default_input_data
         self.recieve_data = default_recieve_data
 
@@ -50,16 +49,24 @@ class Message:
                 raise RuntimeError("Peer closed.")
 
     def _write(self):
-        if self._send_buffer:
-            #print(f"Sending {self._send_buffer!r} to {self.addr}")
-            try:
-                # Should be ready to write
-                sent = self.sock.send(self._send_buffer) # type: ignore
-            except BlockingIOError:
-                # Resource temporarily unavailable (errno EWOULDBLOCK)
-                pass
-            else:
-                self._send_buffer = self._send_buffer[sent:]
+        # If the buffer is empty, switch back to reading mode
+        if not self._send_buffer:
+            self._jsonheader_len = None
+            self.jsonheader = None
+            self.request = None
+            self._set_selector_events_mask("r")
+            return
+        
+        print(f"Sending {self._send_buffer!r} to {self.addr}")
+        try:
+            # Should be ready to write
+            sent = self.sock.send(self._send_buffer) # type: ignore
+        except BlockingIOError:
+            # Resource temporarily unavailable (errno EWOULDBLOCK)
+            pass
+        else:
+            self._send_buffer = self._send_buffer[sent:]
+
 
 
     def _json_encode(self, obj, encoding):
@@ -73,11 +80,11 @@ class Message:
         tiow.close()
         return obj
 
-    def _camera_encode(self, obj, frame_width = 350):
+    def _camera_encode(self, frames, frame_width=350):
         resized_frames = []
         # Resize the frame to the specified width (default is 350)
-        for frame in obj:
-            frame = imutils.resize(self.input_data, width=frame_width)
+        for frame in frames:
+            frame = imutils.resize(frame, width=frame_width)
             resized_frames.append(frame)
         # use pickle as the encoding method
         return pickle.dumps(resized_frames)
@@ -127,8 +134,10 @@ class Message:
 
     def process_events(self, mask,):
         if mask & selectors.EVENT_READ:
+            print("Reading")
             self.read()
         if mask & selectors.EVENT_WRITE:
+            print("Writing")
             self.write()
         
         # returns the recieved_data if you want to grab it through this function
@@ -233,4 +242,4 @@ class Message:
         self._jsonheader_len = None
         self.jsonheader = None
         self.request = None
-        
+

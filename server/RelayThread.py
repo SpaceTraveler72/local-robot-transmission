@@ -50,9 +50,9 @@ class RelayThread:
         conn, addr = sock.accept()  # Should be ready to read
         print(f"Accepted connection from {addr}")
         conn.setblocking(False)
-        message = libserver.Message(self.sel, conn, addr, "robot-data", 
-                                    default_input_data=self.sensor_data, 
-                                    default_recieve_data=self.robot_state)
+        message = libserver.Message(self.sel, conn, addr, 
+                                    default_input_data=[], 
+                                    default_recieve_data=[])
         self.sel.register(conn, selectors.EVENT_READ, data=message)
     
     def _connect_all_cameras(self):
@@ -65,29 +65,18 @@ class RelayThread:
                 break
             i += 1
     
-    def process_message(self, message, mask):
-        message_type = message.key
-                        
-        if message_type == "robot_data":
-            message.input_data = self.sensor_data
-        elif message_type == "camera_stream":
-            frames = []
-            for camera in self.camera_connections:
-                ret, frame = camera.read()
-                if ret:
-                    frames.append(frame)
-                    
-            print(f"Sending {len(frames)} frames")
-            message.input_data = frames
+    def process_message(self, message, mask):                        
+        frames = []
+        for camera in self.camera_connections:
+            ret, frame = camera.read()
+            if ret:
+                frames.append(frame)
+                
+        #print(f"Sending {len(frames)} frames")
+        message.input_data = frames
             
         data = message.process_events(mask)
-        
-        if message_type == "robot_data":
-            self.robot_state = data
-            #print(f"Received: {data}")
-        elif message_type == "camera_stream":
-            pass
-    
+            
     def run_server_socket(self):
         lsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         lsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -96,6 +85,8 @@ class RelayThread:
         print(f"Listening on {(self.host, self.port)}")
         lsock.setblocking(False)
         self.sel.register(lsock, selectors.EVENT_READ, data=None)
+        
+        self._connect_all_cameras()
         
         try:
             while True:

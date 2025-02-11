@@ -56,7 +56,7 @@ class RelayThread:
             return dict(
                 type="camera",
                 encoding="pickle",
-                content=self.sensor_data,
+                content=[],
             )
         
         raise ValueError(f"Unsupported message type: {message_type!r}")
@@ -66,49 +66,40 @@ class RelayThread:
         print(f"Starting connection to {addr}")
         
         # Create socket for robot data
-        robot_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        robot_sock.setblocking(False)
-        robot_sock.connect_ex(addr)
-        robot_events = selectors.EVENT_READ | selectors.EVENT_WRITE
+        # robot_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        # robot_sock.setblocking(False)
+        # robot_sock.connect_ex(addr)
+        # robot_events = selectors.EVENT_READ | selectors.EVENT_WRITE
         
-        # Send initial message to establish connection with initial robot state
-        robot_request = self._create_request("text/json")
-        robot_addr = (host, port)
-        robot_message = libclient.Message(self.sel, robot_sock, robot_addr, robot_request, "robot_data",  
-                                          default_input_data=self.robot_state, 
-                                          default_recieve_data=self.sensor_data)
-        self.sel.register(robot_sock, robot_events, robot_message)
+        # # Send initial message to establish connection with initial robot state
+        # robot_request = self._create_request("text/json")
+        # robot_addr = (host, port)
+        # robot_message = libclient.Message(self.sel, robot_sock, robot_addr, robot_request, "robot_data",  
+        #                                   default_input_data=self.robot_state, 
+        #                                   default_recieve_data=self.sensor_data)
+        # self.sel.register(robot_sock, robot_events, robot_message)
         
-        # # Create socket for camera stream
-        # camera_addr = (host, port + 1)
-        # camera_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        # camera_sock.setblocking(False)
-        # camera_sock.connect_ex(camera_addr)
-        # camera_events = selectors.EVENT_READ | selectors.EVENT_WRITE
+        # Create socket for camera stream
+        camera_addr = (host, port)
+        camera_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        camera_sock.setblocking(False)
+        camera_sock.connect_ex(camera_addr)
+        camera_events = selectors.EVENT_READ | selectors.EVENT_WRITE
         
-        # camera_request = self._create_request("camera")
-        # camera_message = libclient.Message(self.sel, camera_sock, camera_addr, camera_request, "camera_stream",
-        #                                    default_input_data="", 
-        #                                    default_recieve_data=[])
-        # self.sel.register(camera_sock, camera_events, camera_message)
+        camera_request = self._create_request("camera")
+        camera_message = libclient.Message(self.sel, camera_sock, camera_addr, camera_request,
+                                           default_input_data=[], 
+                                           default_recieve_data=[])
+        self.sel.register(camera_sock, camera_events, camera_message)
     
     def process_message(self, message, mask):
-        message_type = message.key
-                        
-        if message_type == "robot_data":
-            message.input_data = self.robot_state
-        elif message_type == "camera_stream":
-            message.input_data = ""
-            
+        message.input_data = []
         data = message.process_events(mask)
-        
-        if message_type == "robot_data":
-            self.sensor_data = data
-            print(f"Received: {data}")
-        elif message_type == "camera_stream":
-            self.camera_data = data
-            for frame in self.camera_data:
-                cv2.imshow('Receving Video', frame)
+        self.camera_data = data
+        print(f"Received {len(data)} frames")
+        for frame in self.camera_data:
+            cv2.imshow('Receiving Video', frame)
+            cv2.waitKey(1)
 
     def _run_client_socket(self):
         try:

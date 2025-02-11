@@ -10,6 +10,8 @@ class VideoServer:
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_socket.bind((host_ip, port))
         self.server_socket.listen(5)
+        
+        self.camera_connections = []
         print("LISTENING AT:", (host_ip, port))
     
     def start_thread(self):
@@ -23,10 +25,21 @@ class VideoServer:
             print('GOT CONNECTION FROM:', addr)
             if client_socket:
                 self.send_video(client_socket)
+    
+    def _connect_all_cameras(self):
+        i = 0
+        while True:
+            cap = cv2.VideoCapture(i)
+            if cap.isOpened():
+                self.camera_connections.append(cap)
+            else:
+                break
+            i += 1
 
     def send_video(self, client_socket):
-        vid = cv2.VideoCapture(0)
-        while vid.isOpened():
+        self._connect_all_cameras()
+        
+        while True:
             img, frame = vid.read()
             frame = imutils.resize(frame, width=350)
             a = pickle.dumps(frame)
