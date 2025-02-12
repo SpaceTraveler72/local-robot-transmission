@@ -11,12 +11,22 @@ class CameraClient:
         self.client_socket = socket.socket()
         self.client_socket.connect((host, port))
         self.connection = self.client_socket.makefile('wb')
-        self.camera = cv2.VideoCapture(0)
+        self.cameras = self.get_available_cameras()  # Assuming a maximum of 4 cameras
+        
+    def get_available_cameras(self):
+        cameras = []
+        for i in range(5):  # Assuming a maximum of 4 cameras
+            cap = cv2.VideoCapture(i)
+            if cap is not None and cap.isOpened():
+                cameras.append(cap)
+            else:
+                cap.release()
+        return cameras
 
-    def handle_client(self):
+    def handle_client(self, camera):
         try:
             while True:
-                ret, frame = self.camera.read()
+                ret, frame = camera.read()
                 if not ret:
                     break
                 img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -32,10 +42,11 @@ class CameraClient:
             self.connection.write(struct.pack('<L', 0))
             self.connection.close()
             self.client_socket.close()
-            self.camera.release()
+            camera.release()
 
     def start(self):
-        threading.Thread(target=self.handle_client).start()
+        for camera in self.cameras:
+            threading.Thread(target=self.handle_client, args=(camera,)).start()
 
 if __name__ == "__main__":
     client = CameraClient()
